@@ -1,0 +1,198 @@
+Reproducible Research: Peer Assessment 1
+========================================
+
+Ewout Noyons  
+November 16, 2014
+
+
+###Introduction
+
+In this document, we will answer various questions that are related to the 'Activity monitoring' dataset. The data consists of the number of steps taken in a 5-minute time interval during the day for an anonymous individual in the months October and November, 2012.
+
+
+###Loading data
+
+The first part of the assignment is to load the data into R. This can be done using:
+
+
+```r
+activityData <- read.csv("activity.csv")
+summary(activityData)
+```
+
+```
+##      steps               date          interval   
+##  Min.   :  0.0   2012-10-01:  288   Min.   :   0  
+##  1st Qu.:  0.0   2012-10-02:  288   1st Qu.: 589  
+##  Median :  0.0   2012-10-03:  288   Median :1178  
+##  Mean   : 37.4   2012-10-04:  288   Mean   :1178  
+##  3rd Qu.: 12.0   2012-10-05:  288   3rd Qu.:1766  
+##  Max.   :806.0   2012-10-06:  288   Max.   :2355  
+##  NA's   :2304    (Other)   :15840
+```
+
+The dataset contains three variables: steps, date, and interval. For each day and 5-minute time interval, you see the number of steps taken by the individual. Each day has 288 5-minute intervals, ranging from 0 to 2355 (00:00 - 23:55 on a 24-hour clock). In the summary statistics, we can already see that there are 2304 missing values for the number of steps taken. In a later part of the assignment, we will calculate this number as well.
+
+
+###Total number of steps per day
+
+The next part of the assignment asks us to make a histogram of the total number of steps taken each day and to calculate the mean and median value of this measure. To do this, we first aggregate the number of steps by day:
+
+
+```r
+totalStepsPerDay <- aggregate(steps ~ date, activityData, sum)
+```
+
+Next, we can make a histogram of this measure using:
+
+
+```r
+hist(totalStepsPerDay$steps, main = "Histogram of Number of Steps per Day", xlab = "Number of steps")
+```
+
+![plot of chunk histogram](figure/histogram.png) 
+
+Lastly, we can calculate the mean and median value for the total number of steps per day with:
+
+
+```r
+mean(totalStepsPerDay$steps)
+```
+
+```
+## [1] 10766
+```
+
+```r
+median(totalStepsPerDay$steps)
+```
+
+```
+## [1] 10765
+```
+
+
+###Daily activity pattern
+
+The subsequent part of the assignment is to make a time series plot with the 5-minute interval on the x-axis and the average number of steps taken during this interval across all days on the y-axis. To do this, we first have to calculate the average values:
+
+
+```r
+avgStepsPerInterval <- aggregate(steps ~ interval, activityData, mean)
+```
+
+From this data we can construct the plot by:
+
+
+```r
+plot(avgStepsPerInterval$interval, avgStepsPerInterval$steps, type = "l", main = "Daily Activity Pattern", xlab = "Interval", ylab = "Number of steps")
+```
+
+![plot of chunk unnamed-chunk-5](figure/unnamed-chunk-5.png) 
+
+Finally, the interval that contains, on average across all days, the maximum number of steps can be determined using:
+
+
+```r
+maxInterval <- max(avgStepsPerInterval$steps)
+avgStepsPerInterval[which(avgStepsPerInterval$steps == maxInterval), ]
+```
+
+```
+##     interval steps
+## 104      835 206.2
+```
+
+So the interval at 8:35 a.m. contains the highest number of steps, with on average 206 steps in 5 minutes.
+
+
+###Imputing missing values
+
+In the summary statistics, we already saw that there are 2304 missing values in the activity data for the number of steps. We can also calculate this number using:
+
+
+```r
+sum(is.na(activityData$steps))
+```
+
+```
+## [1] 2304
+```
+
+The presence of missing values may introduce bias into some calculations or summaries of the data. A simple strategy for filling all missing values is to use the average number of steps during that interval across all days. We already calculated this value in the previous section. 
+
+The strategy is to: 
+
+1. copy the original dataset
+2. add a variable with the average number of steps per interval
+3. fill NA values with the average value
+
+The following code executes this strategy:
+
+
+```r
+imputedData <- activityData
+imputedData$avgSteps <- avgStepsPerInterval$steps
+imputedData$steps <- ifelse(is.na(imputedData$steps), imputedData$avgSteps, imputedData$steps)
+```
+
+By making a histogram of the total number of steps taken each day for the imputed data, we can assess to what extent our new, imputed data differ from the original data. The code to do this is similar to that in the section on the total number of steps per day.
+
+
+```r
+imputedTotalStepsPerDay <- aggregate(steps ~ date, imputedData, sum)
+hist(imputedTotalStepsPerDay$steps, main = "Histogram of Number of Steps per Day", xlab = "Number of steps")
+```
+
+![plot of chunk histogram imputed values](figure/histogram imputed values.png) 
+
+The mean and median values are:
+
+
+```r
+mean(imputedTotalStepsPerDay$steps)
+```
+
+```
+## [1] 10766
+```
+
+```r
+median(imputedTotalStepsPerDay$steps)
+```
+
+```
+## [1] 10766
+```
+
+Comparing the results for the original and imputed data indicates that although the mean and median values are very similar, there is a marked effect on the distribution of the total number of steps per day. The latter distribution is more centered, which means it has a lower variance.
+
+###Differences in activity patterns between weekends and weekdays
+
+The last part of the assignment is to compare the activity patterns for weekdays and weekends. The first step is to create a factor variable that indicates whether a given date is a weekday of weekend day. To do this, we need to convert the date variable to a date format, determine the day of the week for a given date, and classify whether this day is a weekday or a weekend day. Lastly, we need to convert the classification variable to a factor variable. The following code accomplishes this goal:
+
+
+```r
+imputedData$date <- as.POSIXlt(imputedData$date)
+imputedData$dayInWeek <- weekdays(imputedData$date)
+imputedData$dayClass <- ifelse(imputedData$dayInWeek %in% c("Saturday", "Sunday"), "Weekend", "Week")
+imputedData$dayClass <- as.factor(imputedData$dayClass)
+```
+
+Now that we have all the necessary data, we can calculate the number of steps taken within each 5-minute interval averaged across all weekday days and weekend days:
+
+
+```r
+avgStepsPerIntervalPerDayClass <- aggregate(steps ~ interval + dayClass, imputedData, mean)
+```
+
+The last part is to construct the plot:
+
+
+```r
+library(lattice)
+xyplot(steps ~ interval | dayClass, avgStepsPerIntervalPerDayClass, type = "l", layout = c(1, 2), xlab = "Interval", ylab = "Number of steps")
+```
+
+![plot of chunk time series plot](figure/time series plot.png) 
+
